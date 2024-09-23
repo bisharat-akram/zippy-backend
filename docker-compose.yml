@@ -1,0 +1,45 @@
+version: '3.8'
+services:
+  ptf-api-v1:
+    container_name: ptf-api-v1
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    volumes:
+      - .:/usr/src/app
+      - /usr/src/app/node_modules
+      - ./.handler-abi.json:/handler-abi:ro
+      - ./.handler-bytecode:/handler-bytecode:ro
+    depends_on:
+      - ptf-database-v1
+    env_file:
+      - .env
+    ports:
+      - ${SERVER_PORT}:${SERVER_PORT}
+    networks:
+      - ptf-network-v1
+
+  ptf-database-v1:
+    image: postgres:latest
+    container_name: ptf-database-v1
+    restart: unless-stopped
+    ports:
+      - ${POSTGRES_PORT}:${POSTGRES_PORT}
+    volumes:
+      - ./prisma/pg-data:/var/lib/postgresql/data
+    environment:
+      - PGDATA=/var/lib/postgresql/data/data-dev
+    env_file:
+      - ./.env
+    networks:
+      - ptf-network-v1
+    logging:
+      driver: none
+
+volumes:
+  postgres_data:
+    driver: local
+networks:
+  ptf-network-v1:
+    driver: bridge
+    name: ptf-network-v1

@@ -1,0 +1,114 @@
+generator client {
+  provider        = "prisma-client-js"
+  output          = "../src/common/generated/client"
+  previewFeatures = ["fullTextSearch", "postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgres"
+  url        = env("DATABASE_URL")
+  extensions = [uuid_ossp(map: "uuid-ossp")]
+}
+
+model User {
+  id                String             @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  firstName         String             @map("first_name") @db.VarChar(50)
+  lastName          String             @map("last_name") @db.VarChar(50)
+  email             String             @unique @db.VarChar(100)
+  phone             String             @unique @db.VarChar(20)
+  emailVerified     Boolean            @default(false)
+  phoneVerified     Boolean            @default(false)
+  password          String             @db.VarChar(200)
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+  sessions          Session[]
+  verificationCodes VerificationCode[]
+  activities        Activity[]
+  apiUsers          ApiUser[]
+
+  @@map("users")
+}
+
+model VerificationCode {
+  id                String                 @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId            String                 @map("user_id") @db.Uuid
+  type              VERIFICATION_CODE_TYPE
+  destination       VERIFICATION_DESTINATION
+  status            Boolean                @default(false)
+  createdAt         DateTime               @default(now()) @map("created_at")
+  expiryAt          DateTime               @default(dbgenerated("(now() + '00:10:00'::interval)")) @map("expiry_at")
+  refreshAt         DateTime               @default(dbgenerated("(now() + '00:01:00'::interval)")) @map("refresh_at")
+  code              String
+  user              User                   @relation(fields: [userId], references: [id])
+
+  @@map("verification_codes")
+}
+
+model Session {
+  id                 String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId             String   @map("user_id") @db.Uuid
+  refreshToken       String   @map("refresh_token")
+  token              String
+  country            String?  @db.VarChar(50)
+  ip                 String?  @db.Inet
+  status             Boolean  @default(true)
+  refreshTokenStatus Boolean  @default(true) @map("refresh_token_status")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user               User     @relation(fields: [userId], references: [id])
+
+  @@map("sessions")
+}
+
+model ApiUser {
+  id                   String          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId                String         @map("user_id") @db.Uuid
+  name                 String          @db.VarChar(100)
+  clientId             String          @map("client_id") @unique @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  clientSecret         String          @map("client_secret") @unique @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  status               API_USER_STATUS @default(ACTIVE)
+  ipAddressesAllowed   String          @default("0.0.0.0") @map("ip_addresses_allowed") @db.Inet
+  createdAt            DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+  lastUsedAt           DateTime        @default(now()) @map("last_used_at") @db.Timestamptz(6)
+  user                 User            @relation(fields: [userId], references: [id])
+
+  @@map("api_users")
+}
+
+model Activity {
+  id                String                 @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId            String                 @map("user_id") @db.Uuid
+  type              ACTIVITY_TYPE
+  details           Json
+  createdAt         DateTime               @default(now()) @map("created_at")
+  user              User                   @relation(fields: [userId], references: [id])
+
+  @@map("activities")
+}
+
+enum VERIFICATION_CODE_TYPE {
+  EMAIL_VERIFICATION
+  PHONE_VERIFICATION
+  PASSWORD_RESET
+  EMAIL_CHANGE
+  LOGIN_OTP
+}
+
+enum VERIFICATION_DESTINATION {
+  EMAIL
+  PHONE
+}
+
+enum ACTIVITY_TYPE {
+  EMAIL_VERIFICATION
+  PHONE_VERIFICATION
+  PASSWORD_RESET
+  EMAIL_CHANGE
+}
+
+enum API_USER_STATUS {
+  ACTIVE
+  PURGED
+  INACTIVE
+}
