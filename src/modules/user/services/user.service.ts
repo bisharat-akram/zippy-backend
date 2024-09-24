@@ -1,101 +1,121 @@
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
-import { UpdateUserInput } from '../dto';
-import { User, Prisma } from '@common/generated/client';
+import { ACCOUNT_TYPE, RegisterUserInput } from '@modules/auth/dto';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '@providers/prisma/prisma.service';
-import { PasswordService } from '@modules/auth/services/password.service';
-import { RegisterUserInput } from '@modules/auth/dto';
-import { ConfigService } from '@nestjs/config';
-import { AesService } from '@providers/helpers/services/aes.service';
-import { ACTIVITY_TYPE } from '@common/generated/client';
-import {
-  VERIFICATION_CODE_TYPE,
-  VERIFICATION_DESTINATION,
-} from '@common/generated/client';
-import { VerificationService } from '@modules/auth-verification/services';
-import { UtilsService } from '@providers/helpers/services/utils.service';
+import * as bcrypt from 'bcryptjs';
 
 @Injectable()
 export class UserService {
-  constructor(
-    private configService: ConfigService,
-    private aesService: AesService,
-    private readonly prisma: PrismaService,
-    private readonly passwordService: PasswordService,
-    private readonly verificationService: VerificationService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
-  public async getUserByUniqueInput(
-    where: Prisma.UserWhereUniqueInput,
-  ): Promise<User> {
-    return this.prisma.user.findUnique({
-      where,
-    });
-  }
+  /**
+   * Creates a new user and inserts data into either the personalAccount
+   * or businessAccount table based on the account type.
+   */
+  public async createUser(data: RegisterUserInput) {
+    const { accountType, ...userData } = data;
 
-  public async updateOneUser(
-    where: Prisma.UserWhereUniqueInput,
-    data: UpdateUserInput,
-  ): Promise<User> {
     try {
-      return await this.prisma.user.update({
-        data,
-        where,
+      return await this.prisma.$transaction(async (transaction) => {
+        let otpCode = this.generateOpt();
+
+        if (
+          await transaction.user.findFirst({ where: { email: userData.email } })
+        )
+          throw new BadRequestException('Email already exist');
+
+        if (
+          await transaction.user.findFirst({ where: { phone: userData.phone } })
+        )
+          throw new BadRequestException('Phone number already exist');
+
+        const user = await transaction.user.create({
+          data: {
+            email: userData.email,
+            phone: userData.phone,
+            password: await this.hashPassword(userData.password),
+            accountType: accountType.toString(),
+            otpCode: otpCode + '',
+            otpExpiration: new Date(
+              new Date().setMinutes(new Date().getMinutes() + 5),
+            ),
+          },
+        });
+
+        if (accountType === ACCOUNT_TYPE.PERSONAL) {
+          await this.createPersonalAccount(transaction, user.id, userData);
+        } else if (accountType === ACCOUNT_TYPE.BUSINESS) {
+          await this.createBusinessAccount(transaction, user.id, userData);
+        }
+
+        return { user, otpCode: this.generateOpt() };
       });
-    } catch (error: any) {
-      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+    } catch (error) {
+      throw new BadRequestException('User registration failed: ' + error);
     }
   }
 
-  public async createOneUser(data: RegisterUserInput) {
-    return this.prisma.$transaction(
-      async (tx) => {
-        const user = await tx.user.create({
-          data: {
-            firstName: data.firstName,
-            lastName: data.lastName,
-            email: data.email,
-            password: await this.passwordService.hashString(data.password),
-            phone: data.phone,
-          },
-        });
-        await this.verificationService.generateNewVerificationCode(
-          {
-            userId: user.id,
-            code: await this.passwordService.hashString(
-              UtilsService.getCodeByLength(6),
-            ),
-            type: VERIFICATION_CODE_TYPE.EMAIL_VERIFICATION,
-            destination: VERIFICATION_DESTINATION.EMAIL,
-          },
-          tx,
-        );
-        await this.verificationService.generateNewVerificationCode(
-          {
-            userId: user.id,
-            code: await this.passwordService.hashString(
-              UtilsService.getCodeByLength(6),
-            ),
-            type: VERIFICATION_CODE_TYPE.PHONE_VERIFICATION,
-            destination: VERIFICATION_DESTINATION.PHONE,
-          },
-          tx,
-        );
-        await tx.activity.create({
-          data: {
-            type: ACTIVITY_TYPE.EMAIL_VERIFICATION,
-            userId: user.id,
-            details: {
-              description: 'Email verification request sent.',
-            },
-          },
-        });
-        return user;
+  /**
+   * Inserts data into the personalAccount table.
+   */
+  private async createPersonalAccount(transaction, userId: number, data: any) {
+    const { personalAccount } = data;
+
+    if (!personalAccount) {
+      throw new BadRequestException('Personal account data is required');
+    }
+
+    await transaction.personalAccount.create({
+      data: {
+        userId,
+        firstName: personalAccount.firstName,
+        lastName: personalAccount.lastName,
+        dateOfBirth: personalAccount.dateOfBirth,
+        country: personalAccount.country,
+        fullAddress: personalAccount.fullAddress,
+        zipCode: personalAccount.zipCode,
       },
-      {
-        maxWait: 5000,
-        timeout: 10000,
-        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+    });
+  }
+
+  /**
+   * Inserts data into the businessAccount table.
+   */
+  private async createBusinessAccount(transaction, userId: number, data: any) {
+    const { businessAccount } = data;
+
+    if (!businessAccount) {
+      throw new BadRequestException('Business account data is required');
+    }
+
+    await transaction.businessAccount.create({
+      data: {
+        userId,
+        country: businessAccount.country,
+        category: businessAccount.category,
+        name: businessAccount.name,
+        address: businessAccount.address,
+        registration: businessAccount.registration,
+        noOfEmployees: businessAccount.noOfEmployees,
+        type: businessAccount.type,
+        founder: businessAccount.founder,
+        socialLink: businessAccount.socialLink,
       },
-    );
+    });
+  }
+
+  // I will move this code into separate module
+  private generateOpt() {
+    return Math.floor(Math.random() * 900000) + 100000;
+  }
+
+  async hashPassword(password) {
+    return await bcrypt.hash(password, 10);
+  }
+
+  async comparePassword(
+    candidatePassword: string,
+    currentPassword: string,
+  ): Promise<boolean> {
+    return bcrypt.compare(candidatePassword, currentPassword);
   }
 }

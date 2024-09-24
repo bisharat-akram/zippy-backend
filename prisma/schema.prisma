@@ -5,110 +5,69 @@ generator client {
 }
 
 datasource db {
-  provider   = "postgres"
+  provider   = "postgresql"
   url        = env("DATABASE_URL")
-  extensions = [uuid_ossp(map: "uuid-ossp")]
+  // extensions = [uuid_ossp(map: "uuid-ossp")]
+  extensions = [pgcrypto]
 }
 
 model User {
-  id                String             @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  firstName         String             @map("first_name") @db.VarChar(50)
-  lastName          String             @map("last_name") @db.VarChar(50)
-  email             String             @unique @db.VarChar(100)
-  phone             String             @unique @db.VarChar(20)
-  emailVerified     Boolean            @default(false)
-  phoneVerified     Boolean            @default(false)
-  password          String             @db.VarChar(200)
-  createdAt         DateTime           @default(now()) @map("created_at")
-  updatedAt         DateTime           @updatedAt @map("updated_at")
-  sessions          Session[]
-  verificationCodes VerificationCode[]
-  activities        Activity[]
-  apiUsers          ApiUser[]
+  id          Int    @id @default(autoincrement())
+  email       String @unique @db.VarChar(100)
+  phone       String @unique @db.VarChar(20)
+  accountType String @db.VarChar(20)
+
+  otpCode       String?   @db.VarChar(6)
+  otpExpiration DateTime? @db.Timestamp
+
+  emailVerified Boolean @default(false)
+  phoneVerified Boolean @default(false)
+
+  password  String   @db.VarChar(200)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  personalAccount PersonalAccount?
+  businessAccount BusinessAccount?
 
   @@map("users")
 }
 
-model VerificationCode {
-  id                String                 @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  userId            String                 @map("user_id") @db.Uuid
-  type              VERIFICATION_CODE_TYPE
-  destination       VERIFICATION_DESTINATION
-  status            Boolean                @default(false)
-  createdAt         DateTime               @default(now()) @map("created_at")
-  expiryAt          DateTime               @default(dbgenerated("(now() + '00:10:00'::interval)")) @map("expiry_at")
-  refreshAt         DateTime               @default(dbgenerated("(now() + '00:01:00'::interval)")) @map("refresh_at")
-  code              String
-  user              User                   @relation(fields: [userId], references: [id])
+model PersonalAccount {
+  id          Int    @id @default(autoincrement())
+  firstName   String @map("first_name") @db.VarChar(50)
+  lastName    String @map("last_name") @db.VarChar(50)
+  dateOfBirth String @map("date_of_birth") @db.VarChar(20)
+  country     String @db.VarChar(100)
+  fullAddress String @db.VarChar(200)
+  zipCode     String @db.VarChar(20)
 
-  @@map("verification_codes")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user   User @relation(fields: [userId], references: [id])
+  userId Int  @unique
+
+  @@map("personal_accounts")
 }
 
-model Session {
-  id                 String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  userId             String   @map("user_id") @db.Uuid
-  refreshToken       String   @map("refresh_token")
-  token              String
-  country            String?  @db.VarChar(50)
-  ip                 String?  @db.Inet
-  status             Boolean  @default(true)
-  refreshTokenStatus Boolean  @default(true) @map("refresh_token_status")
-  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
-  user               User     @relation(fields: [userId], references: [id])
+model BusinessAccount {
+  id            Int    @id @default(autoincrement())
+  country       String @map("country") @db.VarChar(50)
+  category      String
+  name          String @db.VarChar(100)
+  address       String @db.VarChar(200)
+  registration  String @db.VarChar(50)
+  noOfEmployees Int
+  type          String
+  founder       String @db.VarChar(40)
+  socialLink    String @db.VarChar(200)
 
-  @@map("sessions")
-}
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-model ApiUser {
-  id                   String          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  userId                String         @map("user_id") @db.Uuid
-  name                 String          @db.VarChar(100)
-  clientId             String          @map("client_id") @unique @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  clientSecret         String          @map("client_secret") @unique @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  status               API_USER_STATUS @default(ACTIVE)
-  ipAddressesAllowed   String          @default("0.0.0.0") @map("ip_addresses_allowed") @db.Inet
-  createdAt            DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt            DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
-  lastUsedAt           DateTime        @default(now()) @map("last_used_at") @db.Timestamptz(6)
-  user                 User            @relation(fields: [userId], references: [id])
+  user   User @relation(fields: [userId], references: [id])
+  userId Int  @unique
 
-  @@map("api_users")
-}
-
-model Activity {
-  id                String                 @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  userId            String                 @map("user_id") @db.Uuid
-  type              ACTIVITY_TYPE
-  details           Json
-  createdAt         DateTime               @default(now()) @map("created_at")
-  user              User                   @relation(fields: [userId], references: [id])
-
-  @@map("activities")
-}
-
-enum VERIFICATION_CODE_TYPE {
-  EMAIL_VERIFICATION
-  PHONE_VERIFICATION
-  PASSWORD_RESET
-  EMAIL_CHANGE
-  LOGIN_OTP
-}
-
-enum VERIFICATION_DESTINATION {
-  EMAIL
-  PHONE
-}
-
-enum ACTIVITY_TYPE {
-  EMAIL_VERIFICATION
-  PHONE_VERIFICATION
-  PASSWORD_RESET
-  EMAIL_CHANGE
-}
-
-enum API_USER_STATUS {
-  ACTIVE
-  PURGED
-  INACTIVE
+  @@map("business_accounts")
 }

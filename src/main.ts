@@ -17,7 +17,7 @@ import { validationMetadatasToSchemas } from 'class-validator-jsonschema';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
-  app.setGlobalPrefix('/api/v1');
+  // app.setGlobalPrefix('/api/v1');
   const env = environment();
   const port: number = env.serverPort;
   const siteUrl: string = env.siteUrl;
@@ -74,10 +74,15 @@ async function bootstrap() {
     document.components.schemas || {},
     validationMetadatasToSchemas(metadata),
   );
+
+  SwaggerModule.setup('api', app, document, {
+    swaggerUrl: `/api-json`,
+  });
+
   SwaggerModule.setup('explorer', app, document);
 
   await app.listen(port, () => {
-    Logger.log(`Server is running at ${siteUrl}`);
+    Logger.log(`Server is running at ${port}`);
   });
 }
 bootstrap();

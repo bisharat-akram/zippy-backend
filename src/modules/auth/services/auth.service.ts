@@ -15,23 +15,23 @@ export class AuthService {
     private passwordService: PasswordService,
   ) {}
 
-  public async validateUser(email: string, password: string) {
-    const where: Prisma.UserWhereUniqueInput = {
-      email: email,
-    };
-    const user = await this.userService.getUserByUniqueInput(where);
-    if (!user) {
-      throw new BadRequestException('Invalid credentials');
-    }
-    const isMatchedPassword = await this.passwordService.validateStrings(
-      password,
-      user.password,
-    );
-    if (!isMatchedPassword) {
-      throw new BadRequestException('Invalid credentials');
-    }
-    return user;
-  }
+  // public async validateUser(email: string, password: string) {
+  //   const where: Prisma.UserWhereUniqueInput = {
+  //     email: email,
+  //   };
+  //   const user = await this.userService.getUserByUniqueInput(where);
+  //   if (!user) {
+  //     throw new BadRequestException('Invalid credentials');
+  //   }
+  //   const isMatchedPassword = await this.passwordService.validateStrings(
+  //     password,
+  //     user.password,
+  //   );
+  //   if (!isMatchedPassword) {
+  //     throw new BadRequestException('Invalid credentials');
+  //   }
+  //   return user;
+  // }
 
   public async generateAuthTokenFromLogin(payload: IPayloadUserJwt) {
     const envJwt = environment().jwtOptions;
@@ -55,12 +55,12 @@ export class AuthService {
     const currentHashedRefreshToken =
       await this.passwordService.hashString(refreshToken);
 
-    return this.userService.updateOneUser(where, {
-      currentHashedRefreshToken,
-    });
+    // return this.userService.updateOneUser(where, {
+    //   currentHashedRefreshToken,
+    // });
   }
 
   public async register(data: RegisterUserInput) {
-    return this.userService.createOneUser(data);
+    return this.userService.createUser(data);
   }
 }

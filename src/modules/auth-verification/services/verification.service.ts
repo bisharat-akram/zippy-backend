@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import {
   Prisma,
   PrismaClient,
-  VerificationCode,
+  // VerificationCode,
 } from '@common/generated/client';
 import { PrismaService } from '@providers/prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
@@ -15,13 +15,13 @@ export class VerificationService {
     private readonly prisma: PrismaService,
   ) {}
 
-  public async generateNewVerificationCode(
-    data: Prisma.VerificationCodeUncheckedCreateInput,
-    tx?: Omit<PrismaClient, ITXClientDenyList>,
-  ): Promise<VerificationCode> {
-    const prismaExecutor = tx ? tx : this.prisma;
-    return prismaExecutor.verificationCode.create({
-      data,
-    });
-  }
+  // public async generateNewVerificationCode(
+  //   data: Prisma.VerificationCodeUncheckedCreateInput,
+  //   tx?: Omit<PrismaClient, ITXClientDenyList>,
+  // ): Promise<VerificationCode> {
+  //   const prismaExecutor = tx ? tx : this.prisma;
+  //   return prismaExecutor.verificationCode.create({
+  //     data,
+  //   });
+  // }
 }

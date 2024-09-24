@@ -1,13 +1,12 @@
-import { PrismaService } from 'src/providers/prisma/prisma.service';
+import { ApiUserController } from '@modules/api-user/api-user.controller';
+import { ApiKeyValidatorConstraint } from '@modules/api-user/decorators/api-key.validator';
+import { ApiUserService } from '@modules/api-user/services';
+
 import { Module } from '@nestjs/common';
-import { PrismaModule } from 'src/providers/prisma/prisma.module';
 import { ConfigModule } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
-import { SessionModule } from '@modules/session/session.module';
-import { SessionService } from '@modules/session/services';
-import { ApiUserController } from '@modules/api-user/api-user.controller';
-import { ApiUserService } from '@modules/api-user/services';
-import { ApiKeyValidatorConstraint } from '@modules/api-user/decorators/api-key.validator';
+import { PrismaModule } from 'src/providers/prisma/prisma.module';
+import { PrismaService } from 'src/providers/prisma/prisma.service';
 
 @Module({
   imports: [
@@ -18,11 +17,9 @@ import { ApiKeyValidatorConstraint } from '@modules/api-user/decorators/api-key.
       secret: process.env.JWT_PRIVATE_KEY,
     }),
     PrismaModule,
-    SessionModule,
   ],
   providers: [
     PrismaService,
-    SessionService,
     ApiUserService,
     ApiKeyValidatorConstraint,
   ],
